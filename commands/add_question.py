@@ -225,38 +225,41 @@ class ExplanationModal(ui.Modal, title="Add Explanation"):
         if not url:
             return True
 
+        # Accept almost any URL that might be an image
         url_pattern = re.compile(
-            r'^(https?:\/\/)?'
-            r'([\da-z\.-]+)\.([a-z\.]{2,6})'
-            r'([\/\w \.-]*)*\/?'
-            r'(\.(?:png|jpg|jpeg|gif|webp))$'
+            r'^https?:\/\/'  # http:// or https://
+            r'[^\s<>\"]*'  # Anything that's not whitespace or angle brackets
+            r'(?:'  # Non-capturing group for optional image extensions
+            r'\.(jpg|jpeg|png|gif|webp|svg|bmp|ico)|'  # Common image extensions
+            r'\/[\w\-]+\.(jpg|jpeg|png|gif|webp|svg|bmp|ico)|'  # Path ending with extension
+            r'.*\?.*=.*|'  # URLs with query parameters
+            r'.*\.(com|net|org|edu)\/.*|'  # General domain URLs
+            r'.*\/(id|image|img|photo|picture)\/.*|'  # Common image path keywords
+            r'.*\/(static|media|images|photos|pictures)\/.*'  # Common media paths
+            r')'
         )
-        if not url_pattern.match(url):
-            return False
 
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.head(url) as response:
-                    return response.status == 200
-        except Exception:
-            return False
+        return bool(url_pattern.match(url))
+
+        return bool(url_pattern.match(url))
 
     async def on_submit(self, interaction: Interaction):
         await interaction.response.defer(ephemeral=True)
 
         image_url = self.image_url.value.strip() if self.image_url.value else None
-        if image_url and not await self.validate_url(image_url):
-            error_embed = SmartEmbed("Invalid Image URL", color=discord.Color.red())
-            error_embed.set_description(
-                "The provided image URL is invalid or cannot be resolved. "
-                "Please provide a valid URL pointing to an image (e.g., .png, .jpg)."
-            )
-            await interaction.followup.send(embed=error_embed.get_embeds()[0], ephemeral=True)
-            return
 
+        # Store the explanation and image URL regardless of validation
         interaction.client.question_data["explanation"] = self.explanation.value
         interaction.client.question_data["image_url"] = image_url
         question_data = interaction.client.question_data
+
+        # If there's an image URL but it's invalid, show a warning but continue the flow
+        if image_url and not await self.validate_url(image_url):
+            await interaction.followup.send(
+                "⚠️ Warning: The image URL provided might not work correctly. "
+                "The question will still be saved, but please verify the image URL.",
+                ephemeral=True
+            )
 
         smart_embed = SmartEmbed("Select the Correct Answer")
         smart_embed.set_description(
@@ -282,7 +285,6 @@ class ExplanationModal(ui.Modal, title="Add Explanation"):
         await interaction.followup.send(embed=embeds[0], view=view, ephemeral=True)
 
 
-# The rest of the views remain mostly the same but use SmartEmbed instead of PaginatedEmbed
 class DomainSelectionView(ui.View):
     def __init__(self, options):
         super().__init__()

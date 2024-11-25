@@ -76,6 +76,21 @@ def init_db():
             )
         ''')
 
+        # New table to better use daily problem command
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS daily_problem (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                question_id INTEGER NOT NULL,
+                correct_answer TEXT NOT NULL,
+                selected_answer TEXT NOT NULL,
+                is_correct BOOLEAN NOT NULL,
+                response_time TIMESTAMP NOT NULL,
+                FOREIGN KEY (question_id) REFERENCES questions(id),
+                UNIQUE(user_id, question_id)
+            )
+        ''')
+
         conn.commit()
         conn.close()
         logger.info("Database and tables created successfully.")
